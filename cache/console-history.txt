@@ -1,0 +1,29 @@
+.exit
+var provider = ethers.getDefaultProvider()
+ethers.getDefaultProvider()
+provider
+timestamp
+block
+ethers.utils.parseEther(String(10)).toString()
+ethers.utils.parseEther(String(10));
+ethers
+prov.getBalance(owner1.address).then(x => console.log(x.toString()))
+prov.getBalance(owner.address).then(x => console.log(x.toString()))
+prov.getBalance(owner.address).then(x => console.log(x.tostring()))
+prov.getBalance(owner.address).then(console.log)
+prov.getBalance(owner1.address).then(console.log)
+prov.getBalance(owner1.address)
+prov.getBalance(owner1)
+let [owner, owner1] = await hre.ethers.getSigners()
+prov = ethers.getDefaultProvider()
+provider
+ethers
+ether
+.exit
+exit
+ethers.BigNumber
+ethers.BigNumber({ _hex: '0x0de0b6b3a7640000', _isBigNumber: true })
+ethers.BigNumber
+test
+ethers.utils
+ethers
