@@ -49,7 +49,7 @@ describe("Campaign", () => {
       try {
         await campaign.contributeToProject({value: toEther(1001)});
     
-        expect(await campaign.fullyFunded()).to.equal(true);
+        expect(await campaign.canFund()).to.equal(false);
     
         await campaign.contributeToProject({ value: toEther(1) })
       } catch (ex) {
@@ -133,7 +133,7 @@ describe("Campaign", () => {
     it('can withdraw funds if project is canceled', async() => {
       await campaign.contributeToProject({ value: toEther(10) })
       await campaign.cancelProject();
-      expect(await campaign.fundingClosed()).to.equal(true);
+      expect(await campaign.canFund()).to.equal(false);
 
       const tx = await campaign.contributorWithdraw();
       

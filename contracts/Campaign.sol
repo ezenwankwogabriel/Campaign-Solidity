@@ -2,22 +2,17 @@
 pragma solidity ^0.8.0;
 import "hardhat/console.sol";
 
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-
 contract Campaign {
-    
-    using SafeMath for uint;
     
     address payable public creator;
     string public title;
-    uint idCounter;
+    uint private idCounter;
     uint public targetAmount;
     uint public contributedSum;
     uint public createdAt;
     uint public expiresIn;
-    uint8 mask = 3;
-    bool public fullyFunded;
-    bool public fundingClosed;
+    uint8 private mask = 3;
+    bool public canFund = true;
 
     enum Tiers {
       Bronze,
@@ -32,7 +27,7 @@ contract Campaign {
     mapping(uint8 => address) private _tokenContributor;
     
     // Mapping from owner to token ID
-    mapping(address => uint) private contributorToken;
+    mapping(address => uint) private _contributorToken;
     
     event Contributed();
     event Withdrawn();
@@ -45,7 +40,12 @@ contract Campaign {
         _;
     }
 
-    constructor(uint _targetAmount, string memory _title) public {
+    modifier fundingOpen() {
+        require(canFund, "Project is fully funded");
+        _;
+    }
+
+    constructor(uint _targetAmount, string memory _title) {
         creator = payable(msg.sender);
         targetAmount = _targetAmount;
         title = _title;
@@ -53,35 +53,29 @@ contract Campaign {
         expiresIn = createdAt + 30 days;
     }
     
-    function contributeToProject() public payable {
+    function contributeToProject() public payable fundingOpen {
         require(msg.value > 0.01 ether, "Mininum required amount is 0.01 ether");
-        require(!fullyFunded, "Project is fully funded");
 
         bool exceededTimeframe = block.timestamp > (createdAt + 30 days);
 
         if (exceededTimeframe) {
-            fundingClosed = true;
+            canFund = false;
         }
         
-        require(!fundingClosed, "Exceeded 30 days");
+        require(canFund, "Exceeded 30 days");
+
+        contributedSum += msg.value;
+
+        contributors[msg.sender] += msg.value;
         
-        uint sum;
-        
-        if (contributors[msg.sender] != 0) {
-            sum = contributors[msg.sender].add(msg.value);
-        } else {
-            sum = msg.value;
+        if (contributedSum >= targetAmount) {
+            canFund = false;
         }
+        console.log('contributed', canFund, contributedSum, targetAmount);
         
-        if (sum >= targetAmount) {
-            fullyFunded = true;
-        }
-        
-        contributors[msg.sender] = sum;
-        contributedSum = contributedSum.add(msg.value);
-        if (sum >= 1 ether) {
+        if (contributors[msg.sender] >= 1 ether) {
             _mint(uint8(Tiers.Gold), msg.sender);
-        } else if (sum >= 0.25 ether) {
+        } else if (contributors[msg.sender] >= 0.25 ether) {
             _mint(uint8(Tiers.Silver), msg.sender);
         } else {
             _mint(uint8(Tiers.Bronze), msg.sender);
@@ -96,17 +90,15 @@ contract Campaign {
     }
 
     function contributorWithdraw() public {
-        require(!fullyFunded, "Project is fully funded");
-        if (!fundingClosed) {
-            console.log('timing', block.timestamp, createdAt + 30 days);
+        if (canFund) {
             bool exceededTimeframe = block.timestamp > (createdAt + 30 days);
 
             if (exceededTimeframe) {
-                fundingClosed = true;
+                canFund = false;
             }
         }
         
-        require(fundingClosed, "Project is still open");
+        require(!canFund, "Project is still open");
         require(contributors[msg.sender] != 0, "Address has not funded this project");
 
         uint amount = contributors[msg.sender];
@@ -120,11 +112,11 @@ contract Campaign {
     }
 
     function creatorWithdraw(uint withdrawAmount) public isCreator {
-        require(fullyFunded, "Project is not fully funded yet");
-        require(!fundingClosed, "Project is already closed");
+        require(!canFund, "Project is not fully funded yet / is Closed");
+        require(contributedSum >= targetAmount, "Project not fully funded");
         require(contributedSum > withdrawAmount, "Amount to withdraw exceeds contract funds");
         
-        contributedSum = contributedSum.sub(withdrawAmount);
+        contributedSum = contributedSum - withdrawAmount;
         (bool paid, ) = creator.call{value: withdrawAmount}("");
         
         require(paid, "Failed to send Ether to Creator");
@@ -132,30 +124,29 @@ contract Campaign {
         emit CreatorWithdraw(msg.sender, creator, withdrawAmount);
     }
 
-    function cancelProject() public isCreator {
-        require(!fullyFunded, "Project is fully funded");
-        require(!fundingClosed, "Project is already closed");
+    function cancelProject() public isCreator fundingOpen {
+        require(canFund, "Project is already closed or fully funded");
 
-        fundingClosed = true;
+        canFund = false;
     }
     
     function _mint(uint8 _type, address to) internal {
       uint8 tokenId = uint8(idCounter << mask) + _type;
       _tokenContributor[tokenId] = to;
-      contributorToken[to] = tokenId;
+      _contributorToken[to] = tokenId;
       idCounter += 1;
 
         emit Transfer(msg.sender, to, tokenId);
     }
 
     function getToken(address _address) public view returns (uint) {
-        return contributorToken[_address];
+        return _contributorToken[_address];
     }
 
     function _burn(address sender) internal {
-        require(contributorToken[sender] != 0, "No token exist for user");
+        require(_contributorToken[sender] != 0, "No token exist for user");
 
-        contributorToken[sender] = 0;
+        _contributorToken[sender] = 0;
     }
 
     function balanceOf(address _address) public view returns (uint) {
